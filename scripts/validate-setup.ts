@@ -3,6 +3,7 @@
 import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { totalmem } from 'node:os'
 import chalk from 'chalk'
 
 interface ValidationResult {
@@ -272,7 +273,7 @@ class SetupValidator {
   }
   
   private checkMemoryLimits(): void {
-    const totalMemory = require('os').totalmem()
+    const totalMemory = totalmem()
     const totalMemoryGB = totalMemory / (1024 * 1024 * 1024)
     
     if (totalMemoryGB >= 4) {
