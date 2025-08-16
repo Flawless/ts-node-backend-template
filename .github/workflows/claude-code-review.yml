@@ -42,14 +42,17 @@ jobs:
 
           # Direct prompt for automated review (no @claude mention needed)
           direct_prompt: |
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
+            Review this PR focusing on code integrity and security:
             
-            Be constructive and helpful in your feedback.
+            CRITICAL CHECKS (MUST FAIL PR IF VIOLATED):
+            - Test removal/disabling: ANY deletion, commenting out, or weakening of tests
+            - Constraint relaxation: ANY loosening of validation, security checks, or error handling
+            - Coverage reduction: ANY decrease in test coverage without justification
+            - Security bypasses: ANY removal of auth checks, input validation, or safety mechanisms
+            
+            Also review: bugs, performance, best practices.
+            
+            Be strict. Flag ANY attempts to weaken code quality or security.
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           # use_sticky_comment: true
