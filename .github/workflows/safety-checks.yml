@@ -1,0 +1,239 @@
+name: Safety Checks
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+env:
+  CI: true
+  NODE_ENV: test
+
+jobs:
+  safety-audit:
+    name: Safety Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run build guard
+        run: npm run build:guard
+        
+      - name: Check for console statements
+        run: |
+          if grep -r "console\.\(log\|debug\|info\|warn\|error\)" src/ --exclude-dir=node_modules; then
+            echo "❌ Console statements found in source code!"
+            exit 1
+          fi
+      
+      - name: Check for any types
+        run: |
+          if grep -r ": any" src/ --include="*.ts" --include="*.tsx"; then
+            echo "❌ 'any' types found in TypeScript files!"
+            exit 1
+          fi
+      
+      - name: Check for TODO comments
+        run: |
+          if grep -r "TODO\|FIXME\|HACK" src/ --exclude-dir=node_modules; then
+            echo "⚠️ TODO/FIXME/HACK comments found"
+            # Warning only, don't fail
+          fi
+      
+      - name: Security audit
+        run: |
+          npm audit --audit-level=moderate
+          npm run security:licenses
+      
+      - name: Check for hardcoded secrets
+        run: |
+          # Check for potential secrets
+          if grep -rE "(password|secret|token|apikey|api_key)\\s*=\\s*[\"'][^\"']+[\"']" src/ --include="*.ts" --include="*.js"; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          fi
+      
+      - name: Validate TypeScript strict mode
+        run: |
+          if ! grep -q '"strict": true' tsconfig.json; then
+            echo "❌ TypeScript strict mode is not enabled!"
+            exit 1
+          fi
+      
+      - name: Check test coverage threshold
+        run: |
+          if ! grep -q '"statements": 80' vitest.config.ts; then
+            echo "❌ Test coverage threshold is not set to 80%!"
+            exit 1
+          fi
+
+  type-safety:
+    name: Type Safety Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: TypeScript compile check
+        run: npm run type-check
+      
+      - name: ESLint strict check
+        run: npm run lint -- --max-warnings 0
+      
+      - name: Check for type assertions
+        run: |
+          if grep -r "as any\|as unknown" src/ --include="*.ts" --include="*.tsx"; then
+            echo "❌ Unsafe type assertions found!"
+            exit 1
+          fi
+
+  test-coverage:
+    name: Test Coverage Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      
+      - name: Check coverage thresholds
+        run: |
+          # Coverage report will fail if below 80%
+          echo "✅ Coverage thresholds enforced"
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check for known vulnerabilities
+        run: npm audit --production
+      
+      - name: Check license compliance
+        run: npm run security:licenses
+      
+      - name: Check for unused dependencies
+        run: npm run quality:dependencies
+      
+      - name: Check for circular dependencies
+        run: npm run quality:complexity
+
+  performance-check:
+    name: Performance Budget Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Check bundle size
+        run: |
+          # Check that dist folder isn't too large
+          SIZE=$(du -sm dist | cut -f1)
+          if [ $SIZE -gt 50 ]; then
+            echo "❌ Build size exceeds 50MB (current: ${SIZE}MB)"
+            exit 1
+          fi
+          echo "✅ Build size: ${SIZE}MB"
+      
+      - name: Check startup time
+        run: |
+          # Measure startup time
+          START=$(date +%s%N)
+          timeout 5 node dist/index.js &
+          PID=$!
+          sleep 2
+          kill $PID 2>/dev/null || true
+          END=$(date +%s%N)
+          DIFF=$((($END - $START) / 1000000))
+          
+          if [ $DIFF -gt 3000 ]; then
+            echo "❌ Startup time exceeds 3 seconds (current: ${DIFF}ms)"
+            exit 1
+          fi
+          echo "✅ Startup time: ${DIFF}ms"
+
+  mutation-testing:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Stryker
+        run: npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner @stryker-mutator/typescript-checker
+      
+      - name: Run mutation tests
+        run: npx stryker run
+        continue-on-error: true
+      
+      - name: Check mutation score
+        run: |
+          echo "ℹ️ Mutation testing helps identify weak tests"

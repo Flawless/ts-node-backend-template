@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "dev:debug": "tsx watch --inspect --clear-screen=false src/index.ts",
-    "build": "tsc && tsc-alias",
+    "build": "npm run build:guard && tsc && tsc-alias",
+    "build:guard": "tsx scripts/build-guard.ts",
     "start": "node dist/index.js",
     "start:prod": "NODE_ENV=production node dist/index.js",
     "test": "vitest run",
@@ -40,7 +41,9 @@
     "docker:build:prod": "docker build -f Dockerfile.prod -t node-backend-template:prod .",
     "docker:run": "docker run -p 3000:3000 --env-file .env node-backend-template",
     "generate:types": "tsx scripts/generate-types.ts",
-    "telemetry:test": "tsx scripts/test-telemetry.ts"
+    "telemetry:test": "tsx scripts/test-telemetry.ts",
+    "setup:validate": "tsx scripts/validate-setup.ts",
+    "postinstall": "npm run setup:validate"
   },
   "dependencies": {
     "fastify": "^5.1.0",
@@ -101,7 +104,8 @@
     "tsc-alias": "^1.8.10",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "chalk": "^5.3.0"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
