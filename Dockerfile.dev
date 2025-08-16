@@ -1,0 +1,40 @@
+# Development Dockerfile Declaration
+# Purpose: Development container with hot reload and debugging
+# Contract: Development-optimized container with full tooling
+
+FROM node:18-alpine
+
+# Install development tools
+RUN apk add --no-cache \
+    git \
+    bash \
+    curl \
+    vim
+
+# Create development user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm install
+
+# Copy application source
+COPY . .
+
+# Change ownership
+RUN chown -R nodejs:nodejs /app
+
+# Switch to development user
+USER nodejs
+
+# Expose port and debugging port
+EXPOSE 3000 9229
+
+# Development command with hot reload and debugging
+CMD ["npm", "run", "start:dev"]
